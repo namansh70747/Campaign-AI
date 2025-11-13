@@ -560,6 +560,8 @@ print("--- ✅ Foundry Graph Compiled ---")
 
 # --- 6. FASTAPI SERVER (The Streaming Endpoint) ---
 
+from fastapi.responses import FileResponse
+
 app = FastAPI()
 
 class StreamRequest(BaseModel):
@@ -627,6 +629,23 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/")
 async def root():
     return {"message": "AI Campaign Foundry Server is running. Connect via WebSocket."}
+
+@app.get("/download_brd/{filename}")
+async def download_brd(filename: str):
+    """Serve BRD PDF files for download"""
+    file_path = os.path.join("campaign_outputs", filename)
+    
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}
+    
+    return FileResponse(
+        path=file_path,
+        media_type='application/pdf',
+        filename=filename,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
 
 if __name__ == "__main__":
     print("--- 🚀 Starting FastAPI server on http://localhost:8000 ---")

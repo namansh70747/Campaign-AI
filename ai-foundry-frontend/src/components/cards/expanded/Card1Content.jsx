@@ -3,8 +3,19 @@ import { motion } from 'framer-motion'
 function Card1Content({ brdUrl, strategyMarkdown }) {
   const handleGenerateBRD = () => {
     if (brdUrl) {
-      // If BRD URL exists from the backend, download it
-      window.open(brdUrl, '_blank')
+      // Extract filename from the path (e.g., "campaign_outputs/chromadb-v_brd.pdf" -> "chromadb-v_brd.pdf")
+      const filename = brdUrl.split('/').pop().split('\\').pop()
+      
+      // Use the backend API endpoint to download the file
+      const downloadUrl = `http://localhost:8000/download_brd/${filename}`
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     } else {
       // Fallback to generating a sample BRD
       const brdContent = `BUSINESS REQUIREMENT DOCUMENT (BRD)\n\nProject: Website Development & Marketing Automation\nDate: ${new Date().toLocaleDateString()}\n\n1. PROJECT OVERVIEW\n   - Goal: Create a comprehensive website with automated marketing capabilities\n   - Target Audience: Small to medium businesses\n   - Timeline: 8-12 weeks\n\nEND OF DOCUMENT`.trim()
@@ -108,13 +119,12 @@ function Card1Content({ brdUrl, strategyMarkdown }) {
           <div className="space-y-4">
             <div className="bg-white/5 backdrop-blur-[10px] border border-white/10 rounded-xl p-6">
               <p className="text-blue-300 text-base mb-4">✅ Your BRD has been generated successfully!</p>
-              <a 
-                href={brdUrl}
-                download
-                className="inline-block py-3 px-6 bg-gradient-to-br from-blue-500 to-blue-800 text-white no-underline rounded-lg font-semibold text-base transition-all duration-300 shadow-[0_4px_12px_rgba(59,130,246,0.3)] hover:translate-y-[-2px] hover:shadow-[0_6px_20px_rgba(59,130,246,0.4)]"
+              <button 
+                onClick={handleGenerateBRD}
+                className="inline-block py-3 px-6 bg-gradient-to-br from-blue-500 to-blue-800 text-white border-none rounded-lg font-semibold text-base transition-all duration-300 shadow-[0_4px_12px_rgba(59,130,246,0.3)] hover:translate-y-[-2px] hover:shadow-[0_6px_20px_rgba(59,130,246,0.4)] cursor-pointer"
               >
-                Download BRD PDF
-              </a>
+                📥 Download BRD PDF
+              </button>
             </div>
           </div>
         ) : (
