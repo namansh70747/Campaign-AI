@@ -105,7 +105,7 @@ class CampaignState(BaseModel):
     strategy_markdown: Optional[str] = None # <-- CHANGED
     
     # --- 8. Filled by Ops_Agent ---
-    automation_status: Dict[str, str] = {}
+    automation_status: Dict[str, Any] = {}  # Changed from Dict[str, str] to Dict[str, Any] to support complex data
     
     class Config:
         json_encoders = {
