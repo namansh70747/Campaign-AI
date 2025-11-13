@@ -11,6 +11,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 import pprint
 from dotenv import load_dotenv
 
@@ -619,6 +620,15 @@ from fastapi.responses import FileResponse
 
 app = FastAPI()
 
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Vite default port
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, OPTIONS, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
 class StreamRequest(BaseModel):
     initial_prompt: str
 
@@ -701,6 +711,72 @@ async def download_brd(filename: str):
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+class DeployRequest(BaseModel):
+    html_content: str
+    project_name: str
+
+@app.post("/deploy_to_vercel")
+async def deploy_to_vercel(request: DeployRequest):
+    """Deploy HTML content to Vercel"""
+    
+    VERCEL_TOKEN = os.getenv("VERCEL_TOKEN")
+    
+    if not VERCEL_TOKEN:
+        return {"error": "VERCEL_TOKEN not found in environment variables"}
+    
+    try:
+        # Create deployment payload
+        deployment_payload = {
+            "name": request.project_name,
+            "files": [
+                {
+                    "file": "index.html",
+                    "data": request.html_content
+                }
+            ],
+            "projectSettings": {
+                "framework": None
+            }
+        }
+        
+        # Deploy to Vercel
+        headers = {
+            "Authorization": f"Bearer {VERCEL_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            "https://api.vercel.com/v13/deployments",
+            headers=headers,
+            json=deployment_payload,
+            timeout=30
+        )
+        
+        if response.status_code in [200, 201]:
+            data = response.json()
+            deployment_url = data.get("url", "")
+            
+            # Vercel returns URL without protocol
+            if deployment_url and not deployment_url.startswith("http"):
+                deployment_url = f"https://{deployment_url}"
+            
+            return {
+                "success": True,
+                "url": deployment_url,
+                "id": data.get("id"),
+                "name": data.get("name")
+            }
+        else:
+            error_data = response.json()
+            return {
+                "error": error_data.get("error", {}).get("message", "Deployment failed"),
+                "status_code": response.status_code
+            }
+            
+    except Exception as e:
+        print(f"--- ❌ ERROR deploying to Vercel: {e} ---")
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     print("--- 🚀 Starting FastAPI server on http://localhost:8000 ---")

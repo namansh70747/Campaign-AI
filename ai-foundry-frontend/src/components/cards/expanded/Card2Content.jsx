@@ -5,6 +5,9 @@ import { useNavigate } from 'react-router-dom'
 function Card2Content({ landingPageCode }) {
   const navigate = useNavigate()
   const [code, setCode] = useState(landingPageCode || `import React from 'react'\n\nfunction Website() {\n  return (<div>Preview</div>)\n}\n\nexport default Website`)
+  const [deploying, setDeploying] = useState(false)
+  const [deploymentUrl, setDeploymentUrl] = useState(null)
+  const [deployError, setDeployError] = useState(null)
 
   const handleRegenerate = () => {
     const variations = [
@@ -25,6 +28,43 @@ function Card2Content({ landingPageCode }) {
   const handleEditInEditor = () => {
     if (landingPageCode) {
       navigate('/web-editor', { state: { html: landingPageCode } })
+    }
+  }
+
+  const handleDeployToVercel = async () => {
+    if (!landingPageCode) return
+
+    setDeploying(true)
+    setDeployError(null)
+    setDeploymentUrl(null)
+
+    try {
+      // Call backend API to deploy to Vercel
+      const response = await fetch('http://localhost:8000/deploy_to_vercel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          html_content: landingPageCode,
+          project_name: `campaign-${Date.now()}` // Unique project name
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.url) {
+        setDeploymentUrl(data.url)
+        alert(`🎉 Successfully deployed to Vercel!\n\nURL: ${data.url}`)
+      } else {
+        throw new Error(data.error || 'Deployment failed')
+      }
+    } catch (error) {
+      console.error('Deployment error:', error)
+      setDeployError(error.message)
+      alert(`❌ Deployment failed: ${error.message}`)
+    } finally {
+      setDeploying(false)
     }
   }
 
@@ -62,7 +102,39 @@ function Card2Content({ landingPageCode }) {
               >
                 ✏️ Edit in Web Editor
               </button>
+              <button
+                onClick={handleDeployToVercel}
+                disabled={deploying}
+                className="flex-1 py-2 px-4 bg-black hover:bg-gray-900 text-white rounded-lg font-semibold transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {deploying ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    Deploying...
+                  </>
+                ) : (
+                  <>▲ Deploy to Vercel</>
+                )}
+              </button>
             </div>
+            {deploymentUrl && (
+              <div className="p-4 bg-green-500/20 border-t border-green-500/50">
+                <p className="text-green-200 text-sm mb-2">✅ Deployed successfully!</p>
+                <a 
+                  href={deploymentUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-green-300 hover:text-green-100 text-sm underline break-all"
+                >
+                  {deploymentUrl}
+                </a>
+              </div>
+            )}
+            {deployError && (
+              <div className="p-4 bg-red-500/20 border-t border-red-500/50">
+                <p className="text-red-200 text-sm">❌ {deployError}</p>
+              </div>
+            )}
           </div>
 
           {/* Preview Panel */}
