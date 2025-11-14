@@ -6,9 +6,10 @@ import ExpandedCard from '../components/cards/ExpandedCard'
 export default function Report(){
   const loc = useLocation()
   const navigate = useNavigate()
-  const uploaded = loc.state || {}
+  const locationState = loc.state || {}
 
-  const [prompt, setPrompt] = useState("We're launching a new product called 'ChromaDB-V' and we need to run a webinar to get signups. The target audience is backend developers at fast-growing tech companies. All the technical details are in our launch blog post: https://www.databricks.com/blog/introducing-dbrx-new-state-art-open-llm")
+  // Get prompt from navigation state (sent from PromptPage)
+  const [prompt, setPrompt] = useState(locationState.prompt || "")
   const [logNodes, setLogNodes] = useState([])
   const [jsonState, setJsonState] = useState({})
   const [plannerData, setPlannerData] = useState(null)
@@ -23,10 +24,6 @@ export default function Report(){
   const [strategyMarkdown, setStrategyMarkdown] = useState(null)
   // card UI state (on-demand rendering)
   const [expandedCard, setExpandedCard] = useState(null)
-  // Initial state management
-  const [showInitial, setShowInitial] = useState(true)
-  const [uploadedFile, setUploadedFile] = useState(null)
-  const [isTransitioning, setIsTransitioning] = useState(false)
 
   // Add CSS for fade in animation
   React.useEffect(() => {
@@ -46,21 +43,23 @@ export default function Report(){
     setLogNodes((prev) => [...prev, { id: Date.now() + Math.random(), html: htmlContent, isSeparator }])
   }
 
-  // connect on mount - only when not showing initial screen
+  // connect on mount and auto-start if navigated from PromptPage
   useEffect(() => {
-    if (!showInitial) {
-      addOutputMessage('<strong>STATUS:</strong> Connecting...')
-      connect()
-      // Auto-run foundry after connection
+    addOutputMessage('<strong>STATUS:</strong> Connecting...')
+    connect()
+    
+    // Auto-run if autoStart flag is set from PromptPage
+    if (locationState.autoStart && prompt) {
       setTimeout(() => {
-        sendPrompt()
-      }, 1000)
+        sendPrompt();
+      }, 1000);
     }
+    
     return () => {
       if (wsRef.current) wsRef.current.close()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showInitial])
+  }, [])
 
   useEffect(() => {
     if (outputRef.current) {
@@ -197,32 +196,6 @@ export default function Report(){
     setRunning(true)
   }
 
-  function handleFileUpload(event) {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setUploadedFile(file)
-      // Create a temporary URL for the file
-      const fileUrl = URL.createObjectURL(file)
-      setBrdUrl(fileUrl)
-    } else {
-      alert('Please upload a PDF file.')
-    }
-  }
-
-  function handleContinue() {
-    if (!prompt.trim()) {
-      alert('Please enter a prompt.')
-      return
-    }
-    
-    setIsTransitioning(true)
-    // Start the transition animation
-    setTimeout(() => {
-      setShowInitial(false)
-      setIsTransitioning(false)
-    }, 600) // Match the animation duration
-  }
-
   /* --------------------
      Small inline SVG icon components for action buttons
      -------------------- */
@@ -276,96 +249,21 @@ export default function Report(){
         <h1 className="text-3xl font-bold">BRD / Foundry</h1>
       </div>
 
-      {/* Initial View - Two Boxes */}
-      {showInitial && (
-        <div 
-          className="transition-all duration-600 ease-in-out"
-          style={{
-            opacity: isTransitioning ? 0 : 1,
-            transform: isTransitioning ? 'scale(1.1)' : 'scale(1)',
-            transition: 'opacity 0.6s ease-in-out, transform 0.6s ease-in-out'
-          }}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* PDF Upload Box */}
-            <div className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-2xl p-8 border border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] flex flex-col items-center justify-center min-h-[300px]">
-              <h2 className="text-white text-2xl font-bold mb-6 text-center">Upload BRD Report</h2>
-              <div className="w-full">
-                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 rounded-xl cursor-pointer hover:border-purple-500 transition-colors bg-white/5">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg className="w-12 h-12 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className="mb-2 text-sm text-gray-400">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500">PDF files only</p>
-                  </div>
-                  <input type="file" className="hidden" accept=".pdf" onChange={handleFileUpload} />
-                </label>
-                {uploadedFile && (
-                  <div className="mt-4 text-center">
-                    <p className="text-green-400 text-sm">✓ {uploadedFile.name}</p>
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Expanded card modal (renders on demand) */}
+      {expandedCard ? (
+        <ExpandedCard 
+          cardId={expandedCard} 
+          onClose={() => setExpandedCard(null)} 
+          brdUrl={brdUrl}
+          strategyMarkdown={strategyMarkdown}
+          landingPageCode={landingPageCode}
+          contentData={contentData}
+          generatedAssets={generatedAssets}
+        />
+      ) : null}
 
-            {/* Prompt Box */}
-            <div className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-2xl p-8 border border-gray-700 shadow-[0_8px_24px_rgba(0,0,0,0.3)] flex flex-col min-h-[300px]">
-              <h2 className="text-white text-2xl font-bold mb-6 text-center">Campaign Prompt</h2>
-              <textarea 
-                className="flex-1 w-full p-4 border border-gray-600 rounded-lg bg-[#0a0a0a] text-white font-inherit resize-none focus:border-purple-500 focus:outline-none transition-colors"
-                placeholder="Describe your campaign goals, target audience, and key details..."
-                value={prompt} 
-                onChange={(e) => setPrompt(e.target.value)} 
-              />
-            </div>
-          </div>
-
-          {/* Continue Button */}
-          <div className="flex justify-center">
-            <button 
-              className="px-12 py-4 bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white border-none rounded-xl text-lg font-semibold cursor-pointer transition-all duration-300 hover:translate-y-[-2px] hover:shadow-[0_12px_24px_rgba(102,126,234,0.4)] disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={handleContinue}
-              disabled={!prompt.trim()}
-            >
-              {uploadedFile ? 'Continue' : 'Continue Without a Report*'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content - Hidden initially, revealed after continue */}
-      {!showInitial && (
-        <div 
-          className="transition-opacity duration-600 ease-in-out"
-          style={{
-            opacity: 1,
-            animation: 'fadeIn 0.6s ease-in-out'
-          }}
-        >
-          {uploadedFile && (
-            <div className="mb-3">
-              <strong>Uploaded BRD:</strong> {uploadedFile.name}
-            </div>
-          )}
-
-          {/* Expanded card modal (renders on demand) */}
-          {expandedCard ? (
-            <ExpandedCard 
-              cardId={expandedCard} 
-              onClose={() => setExpandedCard(null)} 
-              brdUrl={brdUrl}
-              strategyMarkdown={strategyMarkdown}
-              landingPageCode={landingPageCode}
-              contentData={contentData}
-              generatedAssets={generatedAssets}
-            />
-          ) : null}
-
-          {/* The rest of the Foundry UI (planner, research, content, etc.) */}
-          <div className="max-w-[1400px] mx-auto p-5">
+      {/* The rest of the Foundry UI (planner, research, content, etc.) */}
+      <div className="max-w-[1400px] mx-auto p-5">
             <h1 className="hidden">AI Campaign Foundry</h1>
         
         {/* Planner Summary Panel - Moved above cards */}
@@ -471,15 +369,8 @@ export default function Report(){
             <pre className="bg-[#0a0a0a] border border-[#222] rounded-lg p-4 max-h-[400px] overflow-y-auto font-mono text-[13px] text-gray-400 whitespace-pre-wrap break-words">{JSON.stringify(jsonState, null, 2)}</pre>
           </div>
         </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
-    {showInitial && (
-      <div className="text-purple-400 text-right pr-10 text-[0.8em] mt-2">
-        {uploadedFile ? '' : '*We will generate it for you if you don\'t have it'}
-    </div>)}
-
     </div>
   )
 }
