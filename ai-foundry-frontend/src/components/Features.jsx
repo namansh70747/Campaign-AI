@@ -15,14 +15,14 @@ const Features = ({ onPositionsCalculated, onAllClicked, onScrollLockChange }) =
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.75) {
             setIsVisible(true)
           } else {
             setIsVisible(false)
           }
         })
       },
-      { threshold: [0, 0.5, 1] }
+      { threshold: [0, 0.25, 0.5, 0.75, 1] }
     )
 
     if (sectionRef.current) {
