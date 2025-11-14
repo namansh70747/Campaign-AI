@@ -19,6 +19,7 @@ export default function Control() {
   const [callActive, setCallActive] = useState(false)
   const vapiRef = useRef(null)
   const [transcript, setTranscript] = useState('')
+  const [currentCallId, setCurrentCallId] = useState(null)
 
   // Initialize Vapi SDK
   useEffect(() => {
@@ -155,16 +156,69 @@ export default function Control() {
 
         // Listen to events
         if (vapiRef.current) {
-          vapiRef.current.on('call-start', () => {
-            console.log('Vapi call started')
+          vapiRef.current.on('call-start', (call) => {
+            console.log('Vapi call started with ID:', call.id)
+            setCurrentCallId(call.id)
             setCallActive(true)
             setTranscript('Call started...\n')
           })
 
-          vapiRef.current.on('call-end', () => {
+          vapiRef.current.on('call-end', async () => {
             console.log('Vapi call ended')
             setCallActive(false)
             setTranscript(prev => prev + '\nCall ended')
+
+            // Fetch full call logs from Vapi API
+            if (currentCallId) {
+              console.log(`Fetching logs for call ID: ${currentCallId}`)
+              try {
+                // Get the API key
+                const apiKey = import.meta.env.VITE_VAPI_API_KEY
+              
+                const response = await fetch(`https://api.vapi.ai/call/${currentCallId}`, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                  }
+                })
+
+                if (response.ok) {
+                  const callLogs = await response.json()
+                  console.log('--- FULL CALL LOG ---', callLogs)
+                  
+                  // Send logs to your server at port 8004
+                  try {
+                    const serverResponse = await fetch('http://localhost:8004/call-logs', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        callId: currentCallId,
+                        logs: callLogs,
+                        timestamp: new Date().toISOString()
+                      })
+                    })
+
+                    if (serverResponse.ok) {
+                      console.log('Call logs successfully sent to server')
+                      setTranscript(prev => prev + '\nCall logs saved to server')
+                    } else {
+                      console.error('Failed to send logs to server:', await serverResponse.text())
+                      setTranscript(prev => prev + '\nWarning: Failed to save logs to server')
+                    }
+                  } catch (serverError) {
+                    console.error('Error sending logs to server:', serverError)
+                    setTranscript(prev => prev + '\nWarning: Could not connect to log server')
+                  }
+                } else {
+                  console.error('Failed to fetch call logs:', await response.text())
+                }
+              } catch (error) {
+                console.error('Error fetching call logs:', error)
+              }
+              setCurrentCallId(null) // Reset for the next call
+            }
           })
 
           vapiRef.current.on('message', (message) => {
