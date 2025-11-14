@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { motion } from 'framer-motion'
 import Footer from '../components/Footer'
 import Navbar from '../components/Navbar'
 import Hero from '../components/Hero'
@@ -176,6 +177,50 @@ function LandingPage() {
           >
             <div className="w-full">
               <Workflow />
+            </div>
+          </section>
+
+          {/* CTA Button Section */}
+          <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+            <div className="container mx-auto max-w-3xl text-center">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              >
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+                  Ready to Build Your Startup?
+                </h2>
+                <p className="text-lg text-gray-600 mb-10">
+                  Start creating your custom AI-powered campaign today
+                </p>
+                <motion.a
+                  href="/prompt"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-block relative px-12 py-5 text-lg font-bold text-white rounded-full overflow-hidden group"
+                  style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  }}
+                >
+                  <motion.span
+                    className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500"
+                    initial={{ x: '-100%' }}
+                    whileHover={{ x: '0%' }}
+                    transition={{ duration: 0.4 }}
+                  />
+                  <span className="relative z-10 flex items-center gap-2">
+                    Get Started
+                    <motion.span
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      →
+                    </motion.span>
+                  </span>
+                </motion.a>
+              </motion.div>
             </div>
           </section>
         </main>

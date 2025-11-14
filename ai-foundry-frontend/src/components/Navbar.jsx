@@ -68,7 +68,7 @@ function Navbar() {
             <Button variant="ghost" size="sm">
               Login
             </Button>
-            <Button onClick={() => navigate("/workflow")} variant="primary" size="sm">
+            <Button onClick={() => navigate("/prompt")} variant="primary" size="sm">
               Get Started
             </Button>
           </div>
