@@ -99,11 +99,6 @@
 }
 
 
-/* Container around the icon */
-.icon-animate {
-  animation: iconGlow 3s ease-in-out infinite alternate;
-}
-
 /* Smooth blue → teal glow + color */
 @keyframes iconGlow {
   0% {
@@ -116,28 +111,18 @@
   }
 }
 
-/* Make sure SVG doesn't clip the glow */
-.icon-animate svg {
-  overflow: visible;
+/* Stroke drawing animation on all SVG elements */
+.icon-container > svg path {
+  stroke: currentColor;
 }
 
-/* Stroke drawing animation on all SVG elements */
 .icon-animate svg path,
 .icon-animate svg circle,
 .icon-animate svg line,
 .icon-animate svg polyline,
 .icon-animate svg rect {
-  stroke: currentColor;
-  fill: transparent;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-
-  stroke-dasharray: 140;
-  stroke-dashoffset: 140;
-  animation: drawPath 8s ease-in-out infinite;
+  stroke: none; /* let GSAP handle stroke completely */
 }
-
 /* Path drawing keyframes */
 @keyframes drawPath {
   0% {

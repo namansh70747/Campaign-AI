@@ -8,6 +8,9 @@ import Control from './pages/control'
 import Report from './pages/report'
 import WebEditor from './pages/webEditor'
 import PromptPage from './pages/PromptPage'
+import Research from './pages/research'
+import Breakdown from './pages/breakdown'
+import Postmaker from './pages/postmaker'
 const root = createRoot(document.getElementById('root'))
 root.render(
   <React.StrictMode>
@@ -19,6 +22,9 @@ root.render(
             <Route path="/workflow" element={<Report/>} />
             <Route path="/web-editor" element={<WebEditor/>} />
             <Route path="/control" element={<Control/>} />
+            <Route path="/research" element={<Research />} />
+            <Route path="/breakdown" element={<Breakdown />} />
+            <Route path="/postmaker" element={<Postmaker />} />
           </Routes>
         </BrowserRouter>
   </React.StrictMode>

@@ -25,10 +25,14 @@ function Card2Content({ landingPageCode }) {
     }
   }
 
-  const handleEditInEditor = () => {
-    if (landingPageCode) {
-      navigate('/web-editor', { state: { html: landingPageCode } })
-    }
+  // If landing page HTML exists, go straight to the Web Editor
+  // so users can immediately tweak and preview the generated page.
+  if (landingPageCode) {
+    // Avoid pushing multiple times if already on editor
+    // This component is used inside a card; on initial render with code present,
+    // direct users to the editor route with the HTML from backend.
+    navigate('/web-editor', { state: { html: landingPageCode } })
+    return null
   }
 
   const handleDeployToVercel = async () => {
@@ -95,12 +99,6 @@ function Card2Content({ landingPageCode }) {
                 className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors text-sm"
               >
                 📋 Copy Code
-              </button>
-              <button
-                onClick={handleEditInEditor}
-                className="flex-1 py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors text-sm"
-              >
-                ✏️ Edit in Web Editor
               </button>
               <button
                 onClick={handleDeployToVercel}

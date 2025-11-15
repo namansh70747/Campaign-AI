@@ -140,7 +140,7 @@ const Index = () => {
               theme === "light" ? "text-gray-600" : "text-muted-foreground"
             }`}
           >
-            Lets initailise your starup and get ready to deploy
+            Lets initailise your startup and get ready to deploy
           </p>
         </div>
 
