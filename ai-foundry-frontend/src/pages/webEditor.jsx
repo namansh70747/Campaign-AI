@@ -59,14 +59,14 @@ export default function WebEditor(){
 
       if (response.ok && data.url) {
         setDeploymentUrl(data.url)
-        alert(`🎉 Successfully deployed to Vercel!\n\nURL: ${data.url}`)
+        alert(`Successfully deployed to Vercel!\n\nURL: ${data.url}`)
       } else {
         throw new Error(data.error || 'Deployment failed')
       }
     } catch (error) {
       console.error('Deployment error:', error)
       setDeployError(error.message)
-      alert(`❌ Deployment failed: ${error.message}`)
+      alert(`Deployment failed: ${error.message}`)
     } finally {
       setDeploying(false)
     }
@@ -121,13 +121,13 @@ export default function WebEditor(){
                       Deploying...
                     </>
                   ) : (
-                    <>▲ Deploy to Vercel</>
+                    <>Deploy to Vercel</>
                   )}
                 </button>
               </div>
               {deploymentUrl && (
                 <div className="p-4 bg-green-500/20 border-t border-green-500/50">
-                  <p className="text-green-700 text-sm mb-2">✅ Deployed successfully!</p>
+                  <p className="text-green-700 text-sm mb-2">Deployed successfully!</p>
                   <a 
                     href={deploymentUrl} 
                     target="_blank" 
@@ -140,7 +140,7 @@ export default function WebEditor(){
               )}
               {deployError && (
                 <div className="p-4 bg-red-500/20 border-t border-red-500/50">
-                  <p className="text-red-700 text-sm">❌ {deployError}</p>
+                  <p className="text-red-700 text-sm">{deployError}</p>
                 </div>
               )}
             </div>

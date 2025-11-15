@@ -205,13 +205,13 @@ function Postmaker() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-black/40 rounded-2xl p-6 border border-white/10 text-white/90">
               <h3 className="font-semibold mb-2">Instagram</h3>
-              <p className="mb-4">⏳ Waiting for Instagram posts to be generated...</p>
+              <p className="mb-4">Waiting for Instagram posts to be generated...</p>
               <button onClick={handleInstagramPost} className="py-2 px-4 bg-pink-500 hover:bg-pink-600 rounded-md text-white transition-colors">Generate IG Post</button>
             </div>
 
             <div className="bg-black/40 rounded-2xl p-6 border border-white/10 text-white/90">
               <h3 className="font-semibold mb-2">Twitter / X</h3>
-              <p className="mb-4">⏳ Waiting for tweets to be generated...</p>
+              <p className="mb-4">Waiting for tweets to be generated...</p>
               <button onClick={handleTwitterPost} className="py-2 px-4 bg-blue-500 hover:bg-blue-600 rounded-md text-white transition-colors">Generate Tweet</button>
             </div>
           </div>
