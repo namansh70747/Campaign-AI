@@ -1,71 +1,118 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function Control() {
-  // Product Pitch State
+  // Original Product Pitch Logic (preserved)
   const [productName, setProductName] = useState('')
   const [productUrl, setProductUrl] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [pitchLoading, setPitchLoading] = useState(false)
   const [pitchError, setPitchError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [showPitchModal, setShowPitchModal] = useState(false)
 
-  // Phone Call State
+  // Dialer / Phone Call Logic (preserved)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [phoneLoading, setPhoneLoading] = useState(false)
   const [phoneMessage, setPhoneMessage] = useState('')
 
-  // Vapi Voice Assistant State
+  // Vapi Voice Assistant Logic (preserved)
   const [vapiReady, setVapiReady] = useState(false)
-  const [callActive, setCallActive] = useState(false)
+  const [vapiError, setVapiError] = useState('')
+  const [vapiEvents, setVapiEvents] = useState([]) // event log
+  const [callActive, setCallActive] = useState(false) // Vapi demo call active
   const vapiRef = useRef(null)
   const [transcript, setTranscript] = useState('')
   const [currentCallId, setCurrentCallId] = useState(null)
+  const [vapiButtonVisible, setVapiButtonVisible] = useState(false)
+  const vapiButtonContainerRef = useRef(null)
 
-  // Initialize Vapi SDK
+  // Scan animation state from new UI
+  const [scanAnimation, setScanAnimation] = useState(false)
+
+  // Interval for scan bar
   useEffect(() => {
-    // Load Vapi SDK script
-    const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js'
-    script.defer = true
-    script.async = true
-    script.onload = () => {
-      console.log('Vapi SDK loaded')
-      setVapiReady(true)
-    }
-    document.head.appendChild(script)
+    const interval = setInterval(() => {
+      setScanAnimation(true)
+      setTimeout(() => setScanAnimation(false), 3000)
+    }, 6000)
+    return () => clearInterval(interval)
+  }, [])
 
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script)
-      }
+  // Load Vapi SDK script (original logic)
+  // Environment variable pre-check
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_VAPI_API_KEY
+    const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID
+    if (!apiKey || !assistantId) {
+      setVapiError('Missing env vars: VITE_VAPI_API_KEY or VITE_VAPI_ASSISTANT_ID')
     }
   }, [])
 
-  // Handle Generate Pitch
+  // Load SDK with fallback
+  useEffect(() => {
+    const primarySrc = 'https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js'
+    const fallbackSrc = 'https://unpkg.com/@vapi-ai/web@latest/dist/index.umd.js'
+    const inject = (src, isFallback = false) => {
+      const script = document.createElement('script')
+      script.src = src
+      script.async = true
+      script.defer = true
+      script.onload = () => {
+        if (window.vapiSDK) {
+          console.log(`Vapi SDK loaded from ${isFallback ? 'fallback' : 'primary'} CDN`)
+          setVapiReady(true)
+          setVapiError('')
+        }
+      }
+      script.onerror = () => {
+        if (!isFallback) {
+          console.warn('Primary CDN failed, attempting fallback...')
+          inject(fallbackSrc, true)
+        } else {
+          setVapiError('Failed to load Vapi SDK from both CDNs.')
+        }
+      }
+      document.head.appendChild(script)
+      return script
+    }
+    const scriptEl = inject(primarySrc)
+    const poll = setInterval(() => {
+      if (window.vapiSDK) {
+        setVapiReady(true)
+        clearInterval(poll)
+      }
+    }, 500)
+    const timeout = setTimeout(() => {
+      clearInterval(poll)
+      if (!window.vapiSDK && !vapiReady) setVapiError(prev => prev || 'Vapi SDK not available after timeout.')
+    }, 12000)
+    return () => {
+      clearInterval(poll)
+      clearTimeout(timeout)
+      if (scriptEl && scriptEl.parentNode) scriptEl.parentNode.removeChild(scriptEl)
+    }
+  }, [vapiReady])
+
+  // Generate system prompt (original logic)
   const handleGeneratePitch = async () => {
     if (!productName || !productUrl) {
       setPitchError('Please enter both product name and URL')
       return
     }
-
     setPitchLoading(true)
     setPitchError('')
     setSystemPrompt('')
-
     try {
       const response = await fetch('http://localhost:8003/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_name: productName,
-          product_url: productUrl,
-        }),
+        body: JSON.stringify({ product_name: productName, product_url: productUrl })
       })
-
       if (response.ok) {
         const data = await response.json()
         setSystemPrompt(data.system_prompt)
-        setPitchError('')
+        setShowPitchModal(true)
       } else {
         const error = await response.json()
         setPitchError(`Failed: ${error.detail || 'Unknown error'}`)
@@ -73,46 +120,31 @@ export default function Control() {
     } catch (error) {
       setPitchError(`Error: ${error.message}`)
     }
-
     setPitchLoading(false)
   }
 
-  // Handle Copy to Clipboard
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(systemPrompt)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Handle Phone Call
-  const handleStartCall = async () => {
-    // Normalize Indian phone numbers
+  // Start phone call (original logic, integrated into dialer)
+  const handleStartPhoneCall = async () => {
+    if (!phoneNumber) return
     let normalizedNumber = phoneNumber.replace(/\s/g, '').replace(/[-()]/g, '')
-    
-    if (!normalizedNumber) {
-      setPhoneMessage('Please enter a phone number')
-      return
-    }
-
-    // Add +91 if it's a 10-digit Indian number
-    if (normalizedNumber.length === 10) {
-      normalizedNumber = '+91' + normalizedNumber
-    }
-
+    if (normalizedNumber.length === 10) normalizedNumber = '+91' + normalizedNumber
     setPhoneLoading(true)
     setPhoneMessage('Starting phone call to marketing assistant...')
-
     try {
       const response = await fetch('http://localhost:8002/start-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone_number: normalizedNumber })
       })
-
       if (response.ok) {
         const data = await response.json()
         setPhoneMessage(`Call initiated! Call ID: ${data.id || 'Processing...'}`)
-        setPhoneNumber('')
       } else {
         const error = await response.json()
         setPhoneMessage(`Failed: ${error.detail || 'Unknown error'}`)
@@ -120,91 +152,59 @@ export default function Control() {
     } catch (error) {
       setPhoneMessage(`Error: ${error.message}`)
     }
-
     setPhoneLoading(false)
   }
 
-  // Handle Vapi Voice Assistant
+  // Start Vapi demo call (original logic)
   const handleStartVapiCall = async () => {
-    if (!vapiReady) {
-      alert('Vapi SDK is still loading. Please try again.')
-      return
-    }
-
+    if (!vapiReady) return
     try {
-      // Get API key from environment
       const apiKey = import.meta.env.VITE_VAPI_API_KEY
       const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID
-
       if (!apiKey || !assistantId) {
-        alert('Vapi credentials not found. Please set VITE_VAPI_API_KEY and VITE_VAPI_ASSISTANT_ID in .env')
+        setVapiError('Missing Vapi credentials: set VITE_VAPI_API_KEY and VITE_VAPI_ASSISTANT_ID in .env')
         return
       }
-
-      // Initialize Vapi
       if (window.vapiSDK) {
+        console.log('Initializing Vapi demo call...')
         vapiRef.current = window.vapiSDK.run({
-          apiKey: apiKey,
+          apiKey,
           assistant: assistantId,
-          config: {
-            buttonConfig: {
-              offText: 'End Call',
-              onText: 'Start Call'
-            }
-          }
+          config: { buttonConfig: { offText: 'End Call', onText: 'Start Call' } }
         })
-
-        // Listen to events
         if (vapiRef.current) {
           vapiRef.current.on('call-start', (call) => {
             console.log('Vapi call started with ID:', call.id)
+            setVapiEvents(ev => [...ev, { t: Date.now(), e: 'call-start', id: call.id }])
             setCurrentCallId(call.id)
             setCallActive(true)
             setTranscript('Call started...\n')
           })
-
           vapiRef.current.on('call-end', async () => {
             console.log('Vapi call ended')
+            setVapiEvents(ev => [...ev, { t: Date.now(), e: 'call-end', id: currentCallId }])
             setCallActive(false)
             setTranscript(prev => prev + '\nCall ended')
-
-            // Fetch full call logs from Vapi API
             if (currentCallId) {
               console.log(`Fetching logs for call ID: ${currentCallId}`)
               try {
-                // Get the API key
-                const apiKey = import.meta.env.VITE_VAPI_API_KEY
-              
+                const apiKeyInner = import.meta.env.VITE_VAPI_API_KEY
                 const response = await fetch(`https://api.vapi.ai/call/${currentCallId}`, {
                   method: 'GET',
-                  headers: {
-                    'Authorization': `Bearer ${apiKey}`
-                  }
+                  headers: { Authorization: `Bearer ${apiKeyInner}` }
                 })
-
                 if (response.ok) {
                   const callLogs = await response.json()
                   console.log('--- FULL CALL LOG ---', callLogs)
-                  
-                  // Send logs to your server at port 8004
                   try {
                     const serverResponse = await fetch('http://localhost:8004/call-logs', {
                       method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({
-                        callId: currentCallId,
-                        logs: callLogs,
-                        timestamp: new Date().toISOString()
-                      })
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ callId: currentCallId, logs: callLogs, timestamp: new Date().toISOString() })
                     })
-
                     if (serverResponse.ok) {
-                      console.log('Call logs successfully sent to server')
                       setTranscript(prev => prev + '\nCall logs saved to server')
                     } else {
-                      console.error('Failed to send logs to server:', await serverResponse.text())
                       setTranscript(prev => prev + '\nWarning: Failed to save logs to server')
                     }
                   } catch (serverError) {
@@ -214,15 +214,14 @@ export default function Control() {
                 } else {
                   console.error('Failed to fetch call logs:', await response.text())
                 }
-              } catch (error) {
-                console.error('Error fetching call logs:', error)
+              } catch (err) {
+                console.error('Error fetching call logs:', err)
               }
-              setCurrentCallId(null) // Reset for the next call
+              setCurrentCallId(null)
             }
           })
-
           vapiRef.current.on('message', (message) => {
-            console.log('Vapi message:', message)
+            setVapiEvents(ev => [...ev, { t: Date.now(), e: message.type, role: message.role }])
             if (message.type === 'transcript') {
               setTranscript(prev => prev + `\n${message.role === 'user' ? 'You' : 'Assistant'}: ${message.transcript}`)
             }
@@ -230,272 +229,358 @@ export default function Control() {
               console.log('Function called:', message.functionCall)
             }
           })
-
           vapiRef.current.on('error', (error) => {
             console.error('Vapi error:', error)
             setTranscript(prev => prev + `\nError: ${error}`)
+            setVapiError(typeof error === 'string' ? error : 'Vapi runtime error occurred.')
+            setVapiEvents(ev => [...ev, { t: Date.now(), e: 'error' }])
           })
         }
       } else {
-        alert('Vapi SDK failed to load')
+        setVapiError('Vapi SDK global not found.')
       }
     } catch (error) {
       console.error('Error initializing Vapi:', error)
-      alert(`Error: ${error.message}`)
+      setVapiError(error.message || 'Unknown initialization error')
     }
   }
 
-  // Handle End Call
-  const handleEndCall = () => {
+  // End Vapi call (original logic)
+  const handleEndVapiCall = () => {
     if (vapiRef.current && callActive) {
       vapiRef.current.stop()
       setCallActive(false)
     }
   }
 
-  // Handle Clear Transcript
-  const handleClearTranscript = () => {
-    setTranscript('')
+  const handleClearTranscript = () => setTranscript('')
+
+  // Digits for dial pad (adapted)
+  const digits = [
+    { n: '1', l: '' }, { n: '2', l: 'ABC' }, { n: '3', l: 'DEF' },
+    { n: '4', l: 'GHI' }, { n: '5', l: 'JKL' }, { n: '6', l: 'MNO' },
+    { n: '7', l: 'PQRS' }, { n: '8', l: 'TUV' }, { n: '9', l: 'WXYZ' },
+    { n: '*', l: '' }, { n: '0', l: '+' }, { n: '#', l: '' }
+  ]
+  const handleDigit = (d) => setPhoneNumber(prev => prev + d)
+
+  // Detect when Vapi's injected button appears and move it into phone container
+  useEffect(() => {
+    const checkVapiButton = setInterval(() => {
+      const vapiBtn = document.querySelector('#vapi-support-btn, .vapi-btn')
+      if (vapiBtn && vapiButtonContainerRef.current) {
+        // Move the button into our container
+        vapiButtonContainerRef.current.appendChild(vapiBtn)
+        setVapiButtonVisible(true)
+        clearInterval(checkVapiButton)
+      }
+    }, 100)
+    return () => clearInterval(checkVapiButton)
+  }, [])
+
+  // Reset vapi button visibility when call ends
+  useEffect(() => {
+    if (!callActive && vapiRef.current) {
+      // Small delay to check if button persists after call end
+      const timer = setTimeout(() => {
+        const vapiBtn = document.querySelector('#vapi-support-btn, .vapi-btn')
+        setVapiButtonVisible(!!vapiBtn)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [callActive])
+
+  // Unified dialer button content logic - hide only when Vapi button is visible
+  const renderDialerButtonContent = () => {
+    if (callActive) return 'End Demo Call'
+    if (phoneLoading) return (<><span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Calling...</>)
+    if (!phoneNumber) {
+      // Keep button visible but transparent when Vapi's button is visible
+      if (vapiButtonVisible) return 'Start Demo Call' // Keep text, opacity handled by className
+      if (vapiError) return 'Retry Demo (SDK Error)'
+      return (!vapiReady
+        ? (<><span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Loading SDK...</>)
+        : 'Start Demo Call')
+    }
+    return 'Call Now'
+  }
+
+  // Restore manual button click logic
+  const handleDialerButtonClick = () => {
+    if (callActive) return handleEndVapiCall()
+    if (!phoneNumber) {
+      if (vapiError) {
+        setVapiError('')
+        setVapiReady(false)
+        const existing = document.querySelector('script[src*="VapiAI/html-script-tag"]')
+        if (existing) existing.remove()
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js'
+        script.defer = true
+        script.async = true
+        script.onload = () => { if (window.vapiSDK) setVapiReady(true) }
+        script.onerror = () => setVapiError('Retry failed: script could not load.')
+        document.head.appendChild(script)
+        return
+      }
+      return handleStartVapiCall()
+    }
+    return handleStartPhoneCall()
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-5xl font-bold text-white mb-4 text-center">AI Voice Agent Control</h1>
-        <p className="text-xl text-gray-300 mb-12 text-center">Generate Custom Pitches & Test Your Voice Assistant</p>
+    <div className="relative min-h-screen overflow-hidden bg-linear-to-br from-slate-50 via-purple-50 to-pink-50">
+      {/* Style Vapi's button to match our custom button */}
+      <style>{`
+        #vapi-support-btn{
+          padding: 30px 10px !important;
+          transform: translateY(-50px)!important;
+        },
+        .vapi-btn {
+          padding: 2px;
+          animation: none !important;
+          width: 20% !important;
+          height: 68px !important;
+          border-radius: 24px !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          font-size: 16px !important;
+          font-weight: 600 !important;
+          border: none !important;
+          
+        }
+        #vapi-icon-container {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+      `}</style>
+      {/* Decorative gradient orbs */}
+      <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 w-[44vw] h-[44vw] rounded-full z-0 opacity-[0.55]" style={{ background: 'radial-gradient(circle at 35% 30%, #FAF5FF, #D8B4FE 30%, #A855F7 60%, #7C3AED)' }} />
+      <div aria-hidden className="pointer-events-none absolute -left-24 top-[25%] w-[26vw] h-[26vw] rounded-full blur-[2px] z-0 opacity-[0.55]" style={{ background: 'radial-gradient(circle at 30% 30%, #F3E8FF, #C084FC 35%, #9333EA 65%, #7E22CE)' }} />
+      <div aria-hidden className="pointer-events-none absolute left-[40%] -bottom-28 w-[22vw] h-[22vw] rounded-full z-0 opacity-[0.42]" style={{ background: 'radial-gradient(circle at 30% 30%, #E9D5FF, #A78BFA 40%, #7C3AED 70%, #5B21B6)' }} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Step 1: Generate Pitch Section */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 hover:border-white/40 transition-all duration-300 hover:shadow-2xl lg:col-span-2">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
-                <h2 className="text-3xl font-bold text-white">Step 1: Generate Your Custom Pitch</h2>
-              </div>
-              <p className="text-gray-300 text-sm">Enter your product details to generate a custom AI assistant pitch</p>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4 mb-6">
-              <input
-                type="text"
-                placeholder="Product Name (e.g., Chroma)"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                disabled={pitchLoading}
-              />
-              <input
-                type="url"
-                placeholder="Product URL (e.g., https://www.trychroma.com)"
-                value={productUrl}
-                onChange={(e) => setProductUrl(e.target.value)}
-                className="px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                disabled={pitchLoading}
-              />
-            </div>
-
-            <button
-              onClick={handleGeneratePitch}
-              className={`w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-semibold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mb-6 ${pitchLoading ? 'animate-pulse' : ''}`}
-              disabled={pitchLoading}
-            >
-              {pitchLoading ? (
-                <>
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> Generating Pitch...
-                </>
-              ) : (
-                'Generate System Prompt'
-              )}
-            </button>
-
-            {pitchError && (
-              <div className="p-4 rounded-lg bg-red-500/20 text-red-200 border border-red-500/50 mb-6">
-                {pitchError}
-              </div>
-            )}
-
-            {systemPrompt && (
-              <div className="space-y-4">
-                <div className="bg-black/30 rounded-lg border border-white/10 overflow-hidden">
-                  <div className="flex justify-between items-center p-3 bg-white/5 border-b border-white/10">
-                    <h4 className="text-white font-semibold">Generated System Prompt</h4>
-                    <button
-                      onClick={handleCopyPrompt}
-                      className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-200 rounded transition-colors text-sm flex items-center gap-2"
-                    >
-                      {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
-                  <div className="p-4 max-h-96 overflow-y-auto">
-                    <pre className="text-gray-200 text-sm whitespace-pre-wrap font-mono">{systemPrompt}</pre>
-                  </div>
+      <div className="relative z-10 max-w-7xl mx-auto py-16 px-4 flex justify-between items-center gap-8" style={{ minHeight: '860px' }}>
+        {/* LEFT: 3D Pitch Form */}
+        <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="w-full max-w-[650px] relative" style={{ perspective: '1200px', minHeight: '800px' }}>
+          <motion.div initial={{ rotateY: -15, rotateX: 5 }} animate={{ rotateY: -8, rotateX: 2 }} transition={{ type: 'spring', stiffness: 50, damping: 20 }} whileHover={{ rotateY: 0, rotateX: 0, scale: 1.02 }} className="relative" style={{ transformStyle: 'preserve-3d' }}>
+            <div className="absolute inset-0 bg-slate-900/20 rounded-3xl blur-2xl" style={{ transform: 'translateZ(-50px) translateY(30px)' }} />
+            <div className="relative bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200" style={{ transformStyle: 'preserve-3d', boxShadow: '0 40px 80px rgba(0,0,0,0.15), 0 20px 40px rgba(0,0,0,0.1)', minHeight: '800px', paddingBottom: '32px' }}>
+              <div className="relative h-32 bg-linear-to-br from-purple-600 via-purple-500 to-indigo-600 overflow-hidden">
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.8),transparent_50%)]" />
                 </div>
-
-                {/* Setup Instructions */}
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6">
-                  <h4 className="text-yellow-200 font-bold text-lg mb-4 flex items-center gap-2">
-                    Setup Instructions for Vapi Dashboard
-                  </h4>
-                  <ol className="space-y-3 text-yellow-100">
-                    <li className="flex gap-3">
-                      <span className="font-bold text-yellow-300">1.</span>
-                      <span>Go to your <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">Vapi Dashboard</a></span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="font-bold text-yellow-300">2.</span>
-                      <span>Navigate to your Assistant settings</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="font-bold text-yellow-300">3.</span>
-                      <span>Paste the generated System Prompt above into the "Pitching Prompt" or "System Prompt" field</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="font-bold text-yellow-300">4.</span>
-                      <span>Save your assistant and test it using the demo call below!</span>
-                    </li>
-                  </ol>
+                <div className="relative z-10 h-full flex flex-col justify-center items-center text-white px-8">
+                  <motion.h2 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-3xl font-bold mb-2">Product Details</motion.h2>
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 0.9 }} transition={{ delay: 0.4 }} className="text-sm text-purple-100">Fill in your product information</motion.p>
                 </div>
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+                <div className="absolute -bottom-5 -left-5 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl" />
               </div>
-            )}
-          </div>
-
-          {/* Step 2: Phone Call Section */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all duration-300 hover:shadow-2xl">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
-                <h2 className="text-2xl font-bold text-white">Step 2: Make Phone Call</h2>
-              </div>
-              <p className="text-gray-300 text-sm">Call a real phone number with your AI assistant</p>
-            </div>
-
-            <div className="space-y-4">
-              <input
-                type="tel"
-                placeholder="Phone number (e.g., +1234567890)"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
-                disabled={phoneLoading}
-              />
-
-              <button
-                onClick={handleStartCall}
-                className={`w-full px-6 py-3 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white font-semibold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${phoneLoading ? 'animate-pulse' : ''}`}
-                disabled={phoneLoading}
-              >
-                {phoneLoading ? (
-                  <>
-                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> Dialing...
-                  </>
-                ) : (
-                  'Start Phone Call'
+              <AnimatePresence>
+                {scanAnimation && (
+                  <motion.div initial={{ top: '32%', opacity: 0 }} animate={{ top: ['32%', '95%'], opacity: [0, 1, 1, 0] }} exit={{ opacity: 0 }} transition={{ duration: 2.5, ease: [0.76, 0, 0.24, 1], times: [0, 0.1, 0.9, 1] }} className="absolute left-0 right-0 z-30 pointer-events-none">
+                    <div className="relative h-1 mx-8">
+                      <div className="absolute inset-0 bg-purple-300 rounded-full blur-md opacity-80" />
+                      <div className="absolute inset-0 bg-purple-300 rounded-full blur-sm" />
+                      <div className="absolute inset-0 bg-purple-200 rounded-full" />
+                    </div>
+                    <div className="absolute -top-8 left-0 right-0 h-16 bg-linear-to-b from-transparent via-purple-300/20 to-transparent" />
+                  </motion.div>
                 )}
-              </button>
-
-              {phoneMessage && (
-                <div className={`p-4 rounded-lg ${phoneMessage.includes('Call initiated') ? 'bg-green-500/20 text-green-200 border border-green-500/50' : phoneMessage.includes('Starting') ? 'bg-blue-500/20 text-blue-200 border border-blue-500/50' : 'bg-red-500/20 text-red-200 border border-red-500/50'}`}>
-                  {phoneMessage}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Step 3: Demo Call Section */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all duration-300 hover:shadow-2xl">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3">
-                <h2 className="text-2xl font-bold text-white">Step 3: Try Demo Call</h2>
-              </div>
-              <p className="text-gray-300 text-sm">Test your AI assistant in your browser</p>
-            </div>
-
-            <div className="space-y-4">
-              {/* Call Status Indicator */}
-              <div className={`flex items-center gap-3 p-3 rounded-lg ${callActive ? 'bg-green-500/20 border border-green-500/50' : 'bg-gray-500/20 border border-gray-500/50'}`}>
-                <div className={`w-3 h-3 rounded-full ${callActive ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
-                <div className="text-white font-medium">
-                  {!vapiReady ? 'Loading SDK...' : callActive ? 'Call Active' : 'Ready to Call'}
-                </div>
-              </div>
-
-              {/* Demo Button Controls */}
-              <div className="flex gap-3">
-                {!callActive ? (
-                  <button
-                    onClick={handleStartVapiCall}
-                    className={`w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white font-semibold rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-                    disabled={!vapiReady}
-                  >
-                    {!vapiReady ? (
-                      <>
-                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> Loading...
-                      </>
-                    ) : (
-                      'Start Demo'
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleEndCall}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white font-semibold rounded-lg transition-all duration-300"
-                  >
-                    End Call
-                  </button>
-                )}
-              </div>
-
-              {/* Info Messages */}
-              {!vapiReady && (
-                <div className="p-4 rounded-lg bg-blue-500/20 text-blue-200 border border-blue-500/50 text-sm">
-                  Loading Vapi SDK...
-                </div>
-              )}
-
-              {vapiReady && !callActive && (
-                <div className="p-4 rounded-lg bg-green-500/20 text-green-200 border border-green-500/50 text-sm">
-                  Ready! Click "Start Demo" and allow microphone access
-                </div>
-              )}
-
-              {callActive && (
-                <div className="p-4 rounded-lg bg-blue-500/20 text-blue-200 border border-blue-500/50 text-sm">
-                  Listening... Speak clearly
-                </div>
-              )}
-
-              {/* Transcript Section */}
-              {transcript && (
-                <div className="bg-black/30 rounded-lg overflow-hidden border border-white/10">
-                  <div className="flex justify-between items-center p-3 border-b border-white/10 bg-white/5">
-                    <h4 className="text-white font-semibold text-sm">Live Transcript</h4>
-                    <button
-                      onClick={handleClearTranscript}
-                      className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded transition-colors text-xs"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="max-h-60 overflow-y-auto">
-                    <div className="p-3 space-y-2">
-                      {transcript.split('\n').map((line, idx) => {
-                        if (!line.trim()) return null
-                        const isUser = line.includes('You:')
-                        const isAssistant = line.includes('Assistant:')
-                        return (
-                          <div 
-                            key={idx} 
-                            className={`p-2 rounded text-xs ${isUser ? 'bg-blue-500/20 text-blue-200' : isAssistant ? 'bg-purple-500/20 text-purple-200' : 'bg-gray-500/20 text-gray-300'}`}
-                          >
-                            {line}
-                          </div>
-                        )
-                      })}
+              </AnimatePresence>
+              <div className="p-12 space-y-8 relative z-10">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">Product Name</label>
+                  <div className="relative group">
+                    <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Enter your product name" className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 outline-none transition-all focus:border-purple-500 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 group-hover:border-slate-300" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                     </div>
                   </div>
+                </motion.div>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="relative">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">Product Link</label>
+                  <div className="relative group">
+                    <input type="url" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="https://your-product-link.com" className="w-full px-5 py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 outline-none transition-all focus:border-purple-500 focus:bg-white focus:shadow-lg focus:shadow-purple-500/10 group-hover:border-slate-300" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                    </div>
+                  </div>
+                </motion.div>
+                <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} onClick={handleGeneratePitch} disabled={!productName || !productUrl || pitchLoading} className="w-full py-4 bg-linear-to-r from-purple-500 to-violet-700 text-white font-semibold rounded-2xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">{pitchLoading ? 'Generating...' : 'Generate Pitch'}</motion.button>
+                {pitchError && <div className="p-4 rounded-xl bg-red-500/10 text-red-600 text-sm border border-red-500/20">{pitchError}</div>}
+                <div className="flex items-center justify-center gap-4 pt-4">
+                  <div className="flex items-center gap-2 text-xs text-slate-500"><div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />AI Powered</div>
+                  <div className="w-px h-4 bg-slate-300" />
+                  <div className="flex items-center gap-2 text-xs text-slate-500"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>Secure</div>
                 </div>
-              )}
+                {showPitchModal && systemPrompt && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 p-8 relative max-h-[80vh] overflow-hidden flex flex-col">
+                      <button className="absolute top-3 right-3 text-slate-400 hover:text-slate-700 text-2xl font-bold w-8 h-8 flex items-center justify-center" onClick={() => setShowPitchModal(false)} aria-label="Close">&times;</button>
+                      <h2 className="text-2xl font-bold mb-4 text-purple-700">Generated System Prompt</h2>
+                      <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200 overflow-y-auto flex-1">
+                        <pre className="whitespace-pre-wrap text-slate-800 text-sm leading-relaxed font-mono">{systemPrompt}</pre>
+                      </div>
+                      <div className="flex gap-3">
+                        <button className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition" onClick={handleCopyPrompt}>{copied ? 'Copied!' : '📋 Copy Prompt'}</button>
+                        <button className="flex-1 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition" onClick={() => setShowPitchModal(false)}>Close</button>
+                      </div>
+                      <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800">
+                        Paste this in your Vapi Assistant settings under System Prompt.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-2 bg-linear-to-b from-transparent to-slate-100" style={{ transform: 'translateZ(1px)' }} />
             </div>
-          </div>
-        </div>
+            <div className="absolute top-0 right-0 w-full h-full bg-linear-to-r from-slate-300 to-slate-400 rounded-3xl" style={{ transform: 'translateZ(-10px) translateX(8px)', zIndex: -1 }} />
+          </motion.div>
+        </motion.div>
+        {/* RIGHT: Dialer + Demo Call */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="flex items-center justify-center">
+          <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }} className="w-full max-w-[420px] min-h-[860px] bg-linear-to-br from-[#0f0f13] to-[#1a1a1f] border-12 border-slate-900 rounded-[56px] p-0 shadow-2xl relative overflow-hidden" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1)' }}>
+            <div className="absolute left-1/2 -translate-x-1/2 top-2 w-[140px] h-9 rounded-[28px] bg-black flex items-center justify-center z-20 border border-slate-800/50">
+              <div className="flex items-center gap-3"><div className="w-2 h-2 rounded-full bg-slate-700" /><div className="w-20 h-1.5 rounded-full bg-slate-800" /><div className="w-2 h-2 rounded-full bg-slate-700" /></div>
+            </div>
+            <div className="h-full flex flex-col pt-16 pb-8 px-6">
+              <div className="text-center mb-8">
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="mb-6">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" /></svg>
+                  </div>
+                  <h1 className="text-3xl text-white mb-2 font-semibold">Pitch Studio</h1>
+                  <p className="text-sm text-slate-400 px-4">Enter VC or sponsor number to pitch your startup</p>
+                </motion.div>
+              </div>
+              <div className="flex-1 flex flex-col justify-end">
+                <AnimatePresence mode="wait">
+                  {phoneMessage && (
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="mb-6 text-sm px-5 py-4 bg-linear-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl text-cyan-300 text-center border border-cyan-500/20 backdrop-blur-sm">{phoneMessage}</motion.div>
+                  )}
+                </AnimatePresence>
+                <div className="mb-8">
+                  <div className="bg-black/40 backdrop-blur-md rounded-3xl p-6 border border-slate-700/50 shadow-inner">
+                    <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (phoneNumber ? handleStartPhoneCall() : handleStartVapiCall())} placeholder="Phone Number" className="w-full bg-transparent text-center text-4xl text-white outline-none placeholder-slate-600 font-light tracking-wider" />
+                  </div>
+                  <AnimatePresence>
+                    {phoneNumber && (
+                      <motion.button initial={{ opacity: 0, scale: 0.9, y: -5 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: -5 }} onClick={() => { setPhoneNumber(''); setPhoneMessage('') }} className="mt-4 w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-2xl transition-all text-sm font-medium border border-red-500/20">Clear Number</motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  {digits.map((d, i) => (
+                    <motion.button key={i} whileHover={{ scale: 1.05, backgroundColor: '#2d2d2d' }} whileTap={{ scale: 0.95 }} onClick={() => handleDigit(d.n)} className="h-[72px] bg-[#1f1f24] rounded-3xl text-white text-3xl font-light flex flex-col justify-center items-center hover:shadow-lg hover:shadow-purple-900/30 transition-all border border-slate-700/40 active:bg-slate-800 backdrop-blur-sm">
+                      <span className="font-normal">{d.n}</span>
+                      {d.l && <span className="text-[8px] tracking-[2.5px] text-slate-500 mt-0.5">{d.l}</span>}
+                    </motion.button>
+                  ))}
+                </div>
+                <div className="mb-4">
+                  {/* Container for Vapi button */}
+                  <div ref={vapiButtonContainerRef} className="w-full">
+                    {/* Always show custom button but make it transparent when Vapi button is visible */}
+                    {renderDialerButtonContent() && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleDialerButtonClick}
+                        disabled={phoneLoading}
+                        className={`w-full h-[68px] rounded-3xl font-semibold text-white text-base flex justify-center items-center gap-2 transition-all border-2 ${
+                          callActive
+                            ? 'bg-red-600 from-red-600 to-red-700 border-red-500'
+                            : 'bg-linear-to-br from-emerald-500 to-green-600 border-green-400/30'
+                        } ${phoneLoading ? 'animate-pulse' : ''} ${vapiButtonVisible && !phoneNumber ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                      >
+                        {renderDialerButtonContent()}
+                      </motion.button>
+                    )}
+                  </div>
+                  {/* Centralized Vapi UI under demo button when no number */}
+                  {!phoneNumber && (
+                    <div className="space-y-4 mt-4">
+                      {transcript && (
+                        <div className="bg-black/30 rounded-2xl overflow-hidden border border-white/10">
+                          <div className="flex justify-between items-center p-3 border-b border-white/10 bg-white/5">
+                            <h4 className="text-white font-semibold text-xs">Live Transcript</h4>
+                            <button onClick={handleClearTranscript} className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded transition-colors text-xs">Clear</button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
+                            <div className="p-3 space-y-2">
+                              {transcript.split('\n').map((line, idx) => {
+                                if (!line.trim()) return null
+                                const isUser = line.includes('You:')
+                                const isAssistant = line.includes('Assistant:')
+                                return (
+                                  <div key={idx} className={`p-2 rounded text-[10px] leading-relaxed ${isUser ? 'bg-blue-500/20 text-blue-200' : isAssistant ? 'bg-purple-500/20 text-purple-200' : 'bg-gray-500/20 text-gray-300'}`}>{line}</div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {vapiEvents.length > 0 && (
+                        <div className="bg-black/20 rounded-xl border border-white/10 p-3 text-[10px] text-slate-300 max-h-32 overflow-y-auto">
+                          <div className="font-semibold mb-2 text-xs text-white">Event Log</div>
+                          {vapiEvents.slice(-25).map((ev, i) => (
+                            <div key={i} className="flex justify-between">
+                              <span>{new Date(ev.t).toLocaleTimeString()}</span>
+                              <span className="uppercase tracking-wide">{ev.e}</span>
+                              {ev.id && <span className="text-purple-300">{ev.id.substring(0,8)}</span>}
+                              {ev.role && <span className="text-blue-300">{ev.role}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {vapiError && !callActive && (
+                        <div className="space-y-2">
+                          <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl p-3">{vapiError}</div>
+                          <button
+                            onClick={() => {
+                              setVapiError('')
+                              setVapiReady(false)
+                              const existing = document.querySelector('script[src*="VapiAI/html-script-tag"]')
+                              if (existing) existing.remove()
+                              const script = document.createElement('script')
+                              script.src = 'https://cdn.jsdelivr.net/gh/VapiAI/html-script-tag@latest/dist/assets/index.js'
+                              script.defer = true
+                              script.async = true
+                              script.onload = () => { if (window.vapiSDK) setVapiReady(true) }
+                              script.onerror = () => setVapiError('Retry failed: script could not load.')
+                              document.head.appendChild(script)
+                            }}
+                            className="w-full py-2 text-xs bg-red-600/60 hover:bg-red-600 text-white rounded-xl font-semibold transition"
+                          >
+                            Retry SDK Init
+                          </button>
+                        </div>
+                      )}
+                      {!callActive && !vapiError && vapiReady && !transcript && (
+                        <div className="text-center text-xs text-slate-400">Vapi assistant ready</div>
+                      )}
+                      {!vapiReady && !vapiError && (
+                        <div className="flex justify-center">
+                          <span className="inline-block w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          <span className="ml-2 text-xs text-slate-400">Loading voice assistant...</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Removed separate transcript/event log blocks below to avoid duplication */}
+                {/* ...existing code... */}
+              </div>
+              {/* ...existing code... */}
+            </div>
+            <div className="absolute top-0 right-0 w-full h-full bg-linear-to-r from-slate-300 to-slate-400 rounded-3xl" style={{ transform: 'translateZ(-10px) translateX(8px)', zIndex: -1 }} />
+          </motion.div>
+        </motion.div>
       </div>
     </div>
   )
