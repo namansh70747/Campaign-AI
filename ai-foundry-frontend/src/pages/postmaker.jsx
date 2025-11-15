@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
-import BackButton from '../components/BackButton'
 
 function Postmaker() {
   const location = useLocation()
@@ -71,8 +70,6 @@ function Postmaker() {
 
   return (
     <div className="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen w-full py-10 px-4 md:px-10">
-      <BackButton />
-
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-6 p-6 max-w-7xl mx-auto">
         <h2 className="text-4xl font-bold text-white mb-6">Generate and automate Instagram & Twitter posts</h2>
         

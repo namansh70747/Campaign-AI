@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import BackButton from '../components/BackButton'
 
 export default function Research() {
 	const loc = useLocation()
@@ -22,7 +21,6 @@ export default function Research() {
 
 	return (
 		<div className="w-full min-h-screen p-6" style={{background:'#FFFFFF'}}>
-			<BackButton className="static mb-4" />
 			<h1 className="text-3xl font-bold mb-6 text-gray-800" style={{fontFamily: 'Urbanist, sans-serif', fontWeight: 800}}>Research Analytics</h1>
 			<div className="rounded-2xl p-7 border border-gray-200 shadow-lg" style={{background:'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #e9d5ff 100%)'}}>
 				<h2 className="text-gray-800 mb-5 text-2xl font-bold" style={{fontFamily: 'Urbanist, sans-serif', fontWeight: 800}}>Research Insights</h2>
